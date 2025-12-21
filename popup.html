@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tự động kết bạn</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 10px;
+        width: 300px;
+      }
+    </style>
+  </head>
+  <body>
+    <h3 class="title">Tự động kết bạn</h3>
+
+    <p>Ngưỡng chạy mỗi ngày:</p>
+    <div>
+      <label><input type="radio" name="limit" value="2" /> 2</label>
+      <label><input type="radio" name="limit" value="50" /> 50</label>
+      <label><input type="radio" name="limit" value="100" /> 100</label>
+      <label><input type="radio" name="limit" value="200" checked /> 200</label>
+    </div>
+
+    <label>Delay mỗi lần gửi (giây):</label>
+    <input type="number" id="delay" value="1" min="1" step="1" />
+    <br /><br />
+
+    <label>Khu vực:</label>
+    <input
+      type="text"
+      id="locations"
+      value="Hà Nội, Hà Đông, Chương Mỹ, Ha Son Binh, Xuân Mai, Chúc Sơn, Chuc Son"
+      style="width: 100%"
+    />
+    <br /><br />
+
+    <button id="start">Bắt đầu</button>
+    <button id="stop">Dừng</button>
+
+    <p id="sent-count">Tổng số lời mời đã gửi: 0</p>
+    <p id="skipped-count">Tổng số người bị loại: 0</p>
+    <p id="total-count" style="font-weight: bold; color: blue">
+      Tổng đã xử lý: 0
+    </p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
