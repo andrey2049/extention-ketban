@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     processedLinks.add(profileLink);
 
                     anchor.click(); 
-                    await sleep(4500); // Đợi trang cá nhân load
+                    await sleep(4500); 
 
                     try {
                         const mainContent = document.querySelector('div[role="main"]');
@@ -75,55 +75,93 @@ document.addEventListener("DOMContentLoaded", () => {
                         const realName = mainContent.querySelector('h1')?.innerText || "Người dùng";
                         const introText = mainContent.innerText.toLowerCase();
 
-                        // A. Kiểm tra Vị trí
+                        // 1. Kiểm tra Vị trí
                         const hasValidLocation = locations.some(loc => {
                             const pattern = new RegExp(`(sống tại|đến từ|ở|từ).*${loc}`, 'i');
                             return pattern.test(introText);
                         });
 
-                        // B. Quét Bạn bè & Người theo dõi
-                        let friends = 0;
-                        let followers = 0;
+                        // 2. Kiểm tra Trạng thái Quan hệ
+const isSingle = introText.includes("độc thân");
+// Kiểm tra xem họ có ghi rõ là đã có chủ hay không
+const isTaken = introText.includes("hẹn hò") || 
+                introText.includes("đã kết hôn") || 
+                introText.includes("đã đính hôn") || 
+                introText.includes("phức tạp");
 
-                        mainContent.querySelectorAll('a, span').forEach(el => {
-                            const txt = el.innerText.toLowerCase();
-                            if ((txt.includes('người bạn') || txt.includes('bạn bè')) && !txt.includes('chung')) {
-                                const match = txt.match(/([\d.,]+)\s*([k]?)/);
-                                if (match) {
-                                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-                                    if (match[2] === 'k') n *= 1000;
-                                    friends = Math.max(friends, Math.round(n));
-                                }
-                            }
-                            if (txt.includes('người theo dõi')) {
-                                const match = txt.match(/([\d.,]+)\s*([k]?)/);
-                                if (match) {
-                                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-                                    if (match[2] === 'k') n *= 1000;
-                                    followers = Math.max(followers, Math.round(n));
-                                }
-                            }
-                        });
+// 3. Quét Bạn bè & Người theo dõi
+let friends = 0;
+let followers = 0;
 
-                        const passStats = (friends >= 500 || followers >= 700);
-                        const passLoc = hasValidLocation;
+// Lấy tất cả các thẻ có khả năng chứa số lượng bạn bè/follower
+mainContent.querySelectorAll('a, span, div').forEach(el => {
+    const txt = el.innerText.toLowerCase();
+    
+    // Sửa lỗi: Chỉ lấy "Người bạn" hoặc "Bạn bè", loại trừ hoàn toàn "Bạn chung"
+    if ((txt.includes('người bạn') || txt.includes('bạn bè')) && !txt.includes('chung')) {
+        // Regex này sẽ bắt các số như 2K, 500, 1.200...
+        const match = txt.match(/([\d.,]+)\s*([k]?)/);
+        if (match) {
+            let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+            if (match[2] === 'k') n *= 1000;
+            // Cập nhật giá trị lớn nhất tìm thấy
+            friends = Math.max(friends, Math.round(n));
+        }
+    }
 
-                        if (passLoc && passStats) {
-                            const addBtn = Array.from(mainContent.querySelectorAll('div[role="button"], div[aria-label="Thêm bạn bè"]'))
-                                .find(btn => (btn.innerText.includes("Thêm bạn bè") || btn.getAttribute('aria-label') === "Thêm bạn bè") 
-                                             && !btn.innerText.includes("Nhắn tin"));
+    // Quét người theo dõi
+    if (txt.includes('người theo dõi')) {
+        const match = txt.match(/([\d.,]+)\s*([k]?)/);
+        if (match) {
+            let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+            if (match[2] === 'k') n *= 1000;
+            followers = Math.max(followers, Math.round(n));
+        }
+    }
+});
 
-                            if (addBtn) {
-                                addBtn.click();
-                                localSentCount++;
-                                chrome.runtime.sendMessage({ type: "SUCCESS", name: realName, url: profileLink });
-                            }
-                        } else {
-                            let reason = !passLoc ? "Sai khu vực" : `dưới (Bạn bè: ${friends}, Người theo dõi: ${followers})`;
-                            chrome.runtime.sendMessage({ type: "SKIPPED", name: realName, reason: reason });
-                        }
+// Kiểm tra lại trong Console để debug (nhấn F12 khi chạy)
+console.log(`Debug - Tên: ${realName}, Bạn bè: ${friends}, Follow: ${followers}`);
+
+// --- ĐIỀU KIỆN TỔNG HỢP ---
+const passLoc = hasValidLocation;
+const passStats = (friends >= 500 || followers >= 700);
+
+// Logic: 
+// - Nếu sai khu vực -> Loại.
+// - Nếu đã có chủ (Hẹn hò/Kết hôn) -> Loại.
+// - Nếu Độc thân -> Gửi.
+// - Nếu Ẩn trạng thái NHƯNG Chỉ số cao -> Gửi.
+
+let shouldAdd = false;
+let failReason = "";
+
+if (!passLoc) {
+    failReason = "Sai khu vực";
+} else if (isTaken) {
+    failReason = "Đã có chủ (Hẹn hò/Kết hôn)";
+} else if (isSingle || passStats) {
+    shouldAdd = true;
+} else {
+    failReason = "Không đủ điều kiện bạn bè/follower";
+}
+
+if (shouldAdd) {
+    const addBtn = Array.from(mainContent.querySelectorAll('div[role="button"], div[aria-label="Thêm bạn bè"]'))
+        .find(btn => (btn.innerText.includes("Thêm bạn bè") || btn.getAttribute('aria-label') === "Thêm bạn bè") 
+                     && !btn.innerText.includes("Nhắn tin")
+                     && !btn.innerText.includes("Hủy lời mời"));
+
+    if (addBtn) {
+        addBtn.click();
+        localSentCount++;
+        chrome.runtime.sendMessage({ type: "SUCCESS", name: realName, url: profileLink });
+    }
+} else {
+    chrome.runtime.sendMessage({ type: "SKIPPED", name: realName, reason: failReason });
+}
                     } catch (err) {
-                        console.error("Lỗi script:", err);
+                        console.error("Lỗi:", err);
                     }
 
                     window.history.back();
