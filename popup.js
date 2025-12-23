@@ -37,32 +37,50 @@ document.addEventListener("DOMContentLoaded", () => {
                 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
                 const clickNext = async () => {
-                    if (!window.autoAddFriendRunning || localSentCount >= limit) {
-                        chrome.runtime.sendMessage({ done: true });
-                        return;
-                    }
+    if (!window.autoAddFriendRunning || localSentCount >= limit) {
+        chrome.runtime.sendMessage({ done: true });
+        return;
+    }
 
-                    const buttons = [...document.querySelectorAll('div[aria-label="Thêm bạn bè"]')].filter(
-                        (btn) => btn.innerText.includes("Thêm bạn bè") && btn.closest("a")
-                    );
+    // 1. Tìm tất cả nút "Thêm bạn bè" trong danh sách gợi ý bên trái
+    const buttons = [...document.querySelectorAll('div[aria-label="Thêm bạn bè"]')].filter(
+        (btn) => btn.innerText.includes("Thêm bạn bè") && btn.closest("a")
+    );
 
-                    const nextButton = buttons.find((btn) => {
-                        const link = btn.closest("a")?.href;
-                        return link && !processedLinks.has(link);
-                    });
+    const nextButton = buttons.find((btn) => {
+        const link = btn.closest("a")?.href;
+        return link && !processedLinks.has(link);
+    });
 
-                    if (!nextButton) {
-                        window.scrollTo(0, document.body.scrollHeight);
-                        await sleep(3000);
-                        return clickNext();
-                    }
+    if (!nextButton) {
+        // Nếu hết nút hiển thị, cuộn cả trang để tải thêm
+        window.scrollTo(0, document.body.scrollHeight);
+        await sleep(3000);
+        return clickNext();
+    }
 
-                    const anchor = nextButton.closest("a");
-                    const profileLink = anchor.href;
-                    processedLinks.add(profileLink);
+    // --- BỔ SUNG: TỰ ĐỘNG CUỘN THANH GỢI Ý ---
+    // Tìm phần tử cha có khả năng cuộn của danh sách bên trái
+    const scrollContainer = nextButton.closest('div[role="navigation"]') || 
+                            nextButton.closest('div[style*="overflow-y: auto"]');
+    
+    if (scrollContainer) {
+        // Cuộn sao cho nick hiện tại nằm giữa tầm mắt
+        nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        // Nếu không tìm thấy container cụ thể, dùng lệnh mặc định của trình duyệt
+        nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // ----------------------------------------
 
-                    anchor.click(); 
-                    await sleep(4500); 
+    const anchor = nextButton.closest("a");
+    const profileLink = anchor.href;
+    processedLinks.add(profileLink);
+
+    // Đợi 1 chút sau khi cuộn rồi mới click để ổn định giao diện
+    await sleep(1000); 
+    anchor.click(); 
+    await sleep(4500);
 
                     try {
                         const mainContent = document.querySelector('div[role="main"]');
