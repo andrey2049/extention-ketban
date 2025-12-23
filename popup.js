@@ -141,15 +141,11 @@ mainContent.querySelectorAll('a, span, div').forEach(el => {
 // Kiểm tra lại trong Console để debug (nhấn F12 khi chạy)
 console.log(`Debug - Tên: ${realName}, Bạn bè: ${friends}, Follow: ${followers}`);
 
+// ... (Các phần quét vị trí, bạn bè, followers giữ nguyên)
+
 // --- ĐIỀU KIỆN TỔNG HỢP ---
 const passLoc = hasValidLocation;
 const passStats = (friends >= 500 || followers >= 700);
-
-// Logic: 
-// - Nếu sai khu vực -> Loại.
-// - Nếu đã có chủ (Hẹn hò/Kết hôn) -> Loại.
-// - Nếu Độc thân -> Gửi.
-// - Nếu Ẩn trạng thái NHƯNG Chỉ số cao -> Gửi.
 
 let shouldAdd = false;
 let failReason = "";
@@ -161,14 +157,14 @@ if (!passLoc) {
 } else if (isSingle || passStats) {
     shouldAdd = true;
 } else {
-    failReason = "Không đủ điều kiện bạn bè/follower";
+    failReason = "Ẩn trạng thái & Chỉ số thấp";
 }
 
 if (shouldAdd) {
+    // Logic gửi lời mời kết bạn (giữ nguyên)
     const addBtn = Array.from(mainContent.querySelectorAll('div[role="button"], div[aria-label="Thêm bạn bè"]'))
         .find(btn => (btn.innerText.includes("Thêm bạn bè") || btn.getAttribute('aria-label') === "Thêm bạn bè") 
-                     && !btn.innerText.includes("Nhắn tin")
-                     && !btn.innerText.includes("Hủy lời mời"));
+                     && !btn.innerText.includes("Nhắn tin"));
 
     if (addBtn) {
         addBtn.click();
@@ -176,7 +172,21 @@ if (shouldAdd) {
         chrome.runtime.sendMessage({ type: "SUCCESS", name: realName, url: profileLink });
     }
 } else {
-    chrome.runtime.sendMessage({ type: "SKIPPED", name: realName, reason: failReason });
+    // --- BỔ SUNG: TỰ ĐỘNG ẤN NÚT GỠ KHI KHÔNG ĐỦ ĐIỀU KIỆN ---
+    // 1. Tìm nút "Gỡ" tương ứng với nick đang xét trong danh sách gợi ý bên trái
+    const listButtons = Array.from(document.querySelectorAll('div[role="button"], div[aria-label="Gỡ"]'));
+    const removeBtn = listButtons.find(btn => 
+        (btn.innerText === "Gỡ" || btn.getAttribute('aria-label') === "Gỡ") && 
+        btn.closest('a')?.href === profileLink
+    );
+
+    if (removeBtn) {
+        removeBtn.click(); // Nhấn gỡ để làm sạch danh sách
+        console.log(`Đã gỡ ${realName} khỏi gợi ý vì: ${failReason}`);
+    }
+
+    // Gửi thông báo về bảng log để bạn theo dõi
+    chrome.runtime.sendMessage({ type: "SKIPPED", name: realName, reason: failReason + " (Đã gỡ)" });
 }
                     } catch (err) {
                         console.error("Lỗi:", err);
