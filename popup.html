@@ -1,49 +1,79 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Tự động kết bạn</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        padding: 10px;
-        width: 300px;
-      }
-    </style>
-  </head>
-  <body>
-    <h3 class="title">Tự động kết bạn</h3>
+<head>
+  <meta charset="UTF-8" />
+  <title>Auto Kết Bạn</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 320px;
+      padding: 10px;
+      background: #fff;
+    }
+    h3 {
+      margin-top: 0;
+      text-align: center;
+      color: #1877f2;
+    }
+    .group {
+      margin-bottom: 10px;
+    }
+    .group label {
+      font-size: 13px;
+    }
+    button {
+      width: 48%;
+      padding: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #log {
+      height: 150px;
+      overflow-y: auto;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      padding: 5px;
+    }
+  </style>
+</head>
+<body>
 
-    <p>Ngưỡng chạy mỗi ngày:</p>
-    <div>
-      <label><input type="radio" name="limit" value="2" /> 2</label>
-      <label><input type="radio" name="limit" value="50" /> 50</label>
-      <label><input type="radio" name="limit" value="100" /> 100</label>
-      <label><input type="radio" name="limit" value="200" checked /> 200</label>
-    </div>
+<h3>Auto Kết Bạn</h3>
 
-    <label>Delay mỗi lần gửi (giây):</label>
-    <input type="number" id="delay" value="1" min="1" step="1" />
-    <br /><br />
+<div class="group">
+  <b>Ngưỡng chạy:</b><br />
+  <label><input type="radio" name="limit" value="25" /> 25</label>
+  <label><input type="radio" name="limit" value="50" /> 50</label>
+  <label><input type="radio" name="limit" value="100" /> 100</label>
+  <label><input type="radio" name="limit" value="200" checked /> 200</label>
+</div>
 
-    <label>Khu vực:</label>
-    <input
-      type="text"
-      id="locations"
-      value="Hà Nội, Hà Đông, Chương Mỹ, Ha Son Binh, Xuân Mai, Chúc Sơn, Chuc Son"
-      style="width: 100%"
-    />
-    <br /><br />
+<div class="group">
+  Delay (giây):
+  <input type="number" id="delay" value="1" min="1" style="width: 60px" />
+</div>
 
-    <button id="start">Bắt đầu</button>
-    <button id="stop">Dừng</button>
+<div class="group">
+  Khu vực:
+  <input
+    type="text"
+    id="locations"
+    value="Hà Nội, Hà Đông, Xuân Mai, Chúc Sơn"
+    style="width: 100%"
+  />
+</div>
 
-    <p id="sent-count">Tổng số lời mời đã gửi: 0</p>
-    <p id="skipped-count">Tổng số người bị loại: 0</p>
-    <p id="total-count" style="font-weight: bold; color: blue">
-      Tổng đã xử lý: 0
-    </p>
+<div class="group">
+  <button id="start">▶ Bắt đầu</button>
+  <button id="stop">⏹ Dừng</button>
+</div>
 
-    <script src="popup.js"></script>
-  </body>
+<p id="sent-count">Đã gửi: 0</p>
+<p id="skipped-count">Bị loại: 0</p>
+<p id="total-count" style="font-weight:bold;color:#1877f2">Tổng đã xử lý: 0</p>
+
+<div id="log"></div>
+
+<script src="popup.js"></script>
+</body>
 </html>

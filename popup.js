@@ -5,192 +5,177 @@ let sentCountDisplay = null;
 let skippedCountDisplay = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  sentCountDisplay = document.getElementById("sent-count");
-  skippedCountDisplay = document.getElementById("skipped-count");
+    sentCountDisplay = document.getElementById("sent-count");
+    skippedCountDisplay = document.getElementById("skipped-count");
 
-  document.getElementById("start").addEventListener("click", async () => {
-    const selectedLimit = document.querySelector('input[name="limit"]:checked');
-    if (!selectedLimit) {
-      alert("⚠️ Vui lòng chọn ngưỡng gửi.");
-      return;
-    }
-
-    const limit = parseInt(selectedLimit.value);
-    const delay = parseFloat(document.getElementById("delay").value) * 1000; // Đổi sang giây
-    const locations = document
-      .getElementById("locations")
-      .value.split(",")
-      .map((l) => l.trim().toLowerCase())
-      .filter(Boolean);
-
-    sentCount = 0;
-    skippedCount = 0;
-    updateCounts();
-    isRunning = true;
-
-    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      args: [limit, delay, locations],
-      func: (limit, delay, locations) => {
-        window.autoAddFriendRunning = true;
-        let localSentCount = 0;
-        const processedLinks = new Set();
-
-        const clickNext = () => {
-          if (!window.autoAddFriendRunning || localSentCount >= limit) {
-            chrome.runtime.sendMessage({ done: true });
+    document.getElementById("start").addEventListener("click", async () => {
+        const selectedLimit = document.querySelector('input[name="limit"]:checked');
+        if (!selectedLimit) {
+            alert("⚠️ Vui lòng chọn ngưỡng gửi.");
             return;
-          }
+        }
 
-          // 1. Tìm danh sách nút "Thêm bạn bè" ở trang gợi ý
-          const buttons = [...document.querySelectorAll('div[aria-label="Thêm bạn bè"]')].filter(
-            (btn) => btn.innerText.includes("Thêm bạn bè") && btn.closest("a")
-          );
+        const limit = parseInt(selectedLimit.value);
+        const delay = parseFloat(document.getElementById("delay").value) * 1000;
+        const locations = document.getElementById("locations").value
+            .split(",").map((l) => l.trim().toLowerCase()).filter(Boolean);
 
-          const nextButton = buttons.find((btn) => {
-            const link = btn.closest("a")?.href;
-            return link && !processedLinks.has(link);
-          });
+        sentCount = 0;
+        skippedCount = 0;
+        updateCounts();
+        isRunning = true;
 
-          if (!nextButton) {
-            console.log("🔄 Hết gợi ý, cuộn trang hoặc tải lại...");
-            window.scrollTo(0, document.body.scrollHeight);
-            setTimeout(clickNext, 3000);
-            return;
-          }
+        let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-          const anchor = nextButton.closest("a");
-          const profileLink = anchor.href;
-          const name = anchor.innerText.split("\n")[0] || "Người dùng FB";
-          
-          processedLinks.add(profileLink);
-          anchor.click(); // Vào trang cá nhân
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            args: [limit, delay, locations],
+            func: (limit, delay, locations) => {
+                window.autoAddFriendRunning = true;
+                let localSentCount = 0;
+                const processedLinks = new Set();
+                const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-          // Chờ trang cá nhân load
-          setTimeout(() => {
-            try {
-              // --- PHẦN QUÉT THÔNG TIN CHÍNH XÁC ---
-              
-              // Lấy vùng Intro (Giới thiệu)
-              const introBox = document.querySelector('div[role="main"]');
-              const introText = introBox ? introBox.innerText.toLowerCase() : "";
+                const clickNext = async () => {
+                    if (!window.autoAddFriendRunning || localSentCount >= limit) {
+                        chrome.runtime.sendMessage({ done: true });
+                        return;
+                    }
 
-              // A. Kiểm tra Vị trí (Regex chặt chẽ)
-              const hasValidLocation = locations.some(loc => {
-                const pattern = new RegExp(`(sống tại|đến từ|ở|từ).*${loc}`, 'i');
-                return pattern.test(introText);
-              });
+                    const buttons = [...document.querySelectorAll('div[aria-label="Thêm bạn bè"]')].filter(
+                        (btn) => btn.innerText.includes("Thêm bạn bè") && btn.closest("a")
+                    );
 
-              // B. Kiểm tra Số lượng Bạn/Follow (Loại bỏ "Bạn chung")
-              let friends = 0;
-              let followers = 0;
+                    const nextButton = buttons.find((btn) => {
+                        const link = btn.closest("a")?.href;
+                        return link && !processedLinks.has(link);
+                    });
 
-              const allElements = Array.from(document.querySelectorAll('a, span'))
-                .filter(el => /\d/.test(el.innerText))
-                .map(el => el.innerText.toLowerCase());
+                    if (!nextButton) {
+                        window.scrollTo(0, document.body.scrollHeight);
+                        await sleep(3000);
+                        return clickNext();
+                    }
 
-              allElements.forEach(txt => {
-                // Chỉ lấy "người bạn" mà không có chữ "chung"
-                if ((txt.includes('người bạn') || txt.includes('bạn bè')) && !txt.includes('chung')) {
-                  const match = txt.match(/([\d.,]+)\s*([k]?)/);
-                  if (match) {
-                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-                    if (match[2] === 'k') n *= 1000;
-                    if (n > friends) friends = Math.round(n);
-                  }
-                }
-                // Quét người theo dõi
-                if (txt.includes('người theo dõi')) {
-                  const match = txt.match(/([\d.,]+)\s*([k]?)/);
-                  if (match) {
-                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-                    if (match[2] === 'k') n *= 1000;
-                    if (n > followers) followers = Math.round(n);
-                  }
-                }
-              });
+                    const anchor = nextButton.closest("a");
+                    const profileLink = anchor.href;
+                    processedLinks.add(profileLink);
 
-              // C. Kiểm tra Quan hệ
-              const isSingle = introText.includes("độc thân");
-              const hasRelationship = /(hẹn hò|kết hôn|đã đính hôn|vợ|chồng)/.test(introText);
+                    anchor.click(); 
+                    await sleep(4500); // Đợi trang cá nhân load
 
-              // --- RA QUYẾT ĐỊNH ---
-              const passStats = (friends >= 500 || followers >= 500);
-              const passLoc = hasValidLocation;
-              const passRel = isSingle || !hasRelationship;
+                    try {
+                        const mainContent = document.querySelector('div[role="main"]');
+                        if (!mainContent) {
+                            window.history.back();
+                            await sleep(2000);
+                            return clickNext();
+                        }
 
-              if (passLoc && passStats && passRel) {
-                const addBtn = document.querySelector('div[aria-label="Thêm bạn bè"]');
-                if (addBtn) {
-                  addBtn.click();
-                  localSentCount++;
-                  chrome.runtime.sendMessage({ type: "SUCCESS", name, url: profileLink });
-                }
-              } else {
-                let reason = [];
-                if (!passLoc) reason.push("Sai khu vực");
-                if (!passStats) reason.push(`Ít bạn (${friends})`);
-                if (!passRel) reason.push("Đã kết hôn/Hẹn hò");
-                chrome.runtime.sendMessage({ type: "SKIPPED", name, reason: reason.join(" - ") });
-              }
+                        const realName = mainContent.querySelector('h1')?.innerText || "Người dùng";
+                        const introText = mainContent.innerText.toLowerCase();
 
-              // Quay lại danh sách gợi ý
-              window.history.back();
-              setTimeout(clickNext, delay);
+                        // A. Kiểm tra Vị trí
+                        const hasValidLocation = locations.some(loc => {
+                            const pattern = new RegExp(`(sống tại|đến từ|ở|từ).*${loc}`, 'i');
+                            return pattern.test(introText);
+                        });
 
-            } catch (err) {
-              console.error(err);
-              window.history.back();
-              setTimeout(clickNext, delay);
+                        // B. Quét Bạn bè & Người theo dõi
+                        let friends = 0;
+                        let followers = 0;
+
+                        mainContent.querySelectorAll('a, span').forEach(el => {
+                            const txt = el.innerText.toLowerCase();
+                            if ((txt.includes('người bạn') || txt.includes('bạn bè')) && !txt.includes('chung')) {
+                                const match = txt.match(/([\d.,]+)\s*([k]?)/);
+                                if (match) {
+                                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+                                    if (match[2] === 'k') n *= 1000;
+                                    friends = Math.max(friends, Math.round(n));
+                                }
+                            }
+                            if (txt.includes('người theo dõi')) {
+                                const match = txt.match(/([\d.,]+)\s*([k]?)/);
+                                if (match) {
+                                    let n = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+                                    if (match[2] === 'k') n *= 1000;
+                                    followers = Math.max(followers, Math.round(n));
+                                }
+                            }
+                        });
+
+                        const passStats = (friends >= 500 || followers >= 700);
+                        const passLoc = hasValidLocation;
+
+                        if (passLoc && passStats) {
+                            const addBtn = Array.from(mainContent.querySelectorAll('div[role="button"], div[aria-label="Thêm bạn bè"]'))
+                                .find(btn => (btn.innerText.includes("Thêm bạn bè") || btn.getAttribute('aria-label') === "Thêm bạn bè") 
+                                             && !btn.innerText.includes("Nhắn tin"));
+
+                            if (addBtn) {
+                                addBtn.click();
+                                localSentCount++;
+                                chrome.runtime.sendMessage({ type: "SUCCESS", name: realName, url: profileLink });
+                            }
+                        } else {
+                            let reason = !passLoc ? "Sai khu vực" : `dưới (Bạn bè: ${friends}, Người theo dõi: ${followers})`;
+                            chrome.runtime.sendMessage({ type: "SKIPPED", name: realName, reason: reason });
+                        }
+                    } catch (err) {
+                        console.error("Lỗi script:", err);
+                    }
+
+                    window.history.back();
+                    await sleep(delay + 3000);
+                    return clickNext();
+                };
+                clickNext();
             }
-          }, 3500); // Đợi 3.5s để FB load đủ Intro
-        };
-
-        clickNext();
-      },
+        });
     });
-  });
 
-  document.getElementById("stop").addEventListener("click", () => {
-    isRunning = false;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.scripting.executeScript({
-        target: { tabId: tabs[0].id },
-        func: () => { window.autoAddFriendRunning = false; },
-      });
+    document.getElementById("stop").addEventListener("click", () => {
+        isRunning = false;
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: () => { window.autoAddFriendRunning = false; },
+            });
+        });
     });
-  });
 });
 
-// Lắng nghe tin nhắn từ trang web gửi về popup
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "SUCCESS") {
-    sentCount++;
-    log(`✅ Đã gửi: <a href="${message.url}" target="_blank">${message.name}</a>`);
-  } else if (message.type === "SKIPPED") {
-    skippedCount++;
-    log(`⚠️ Bỏ qua ${message.name}: ${message.reason}`);
-  } else if (message.done) {
-    log("<b>✨ Hoàn thành mục tiêu!</b>");
-  }
-  updateCounts();
+    if (message.type === "SUCCESS") {
+        sentCount++;
+        log(`✅ Đã gửi: <a href="${message.url}" target="_blank"><b>${message.name}</b></a>`, "success");
+    } else if (message.type === "SKIPPED") {
+        skippedCount++;
+        log(`⚠️ Bỏ qua <b>${message.name}</b>: ${message.reason}`, "skip");
+    } else if (message.done) {
+        log("<b style='color: blue;'>✨ Hoàn thành mục tiêu!</b>");
+        isRunning = false;
+    }
+    updateCounts();
 });
 
 function updateCounts() {
-  if (sentCountDisplay) sentCountDisplay.textContent = `Đã gửi: ${sentCount}`;
-  if (skippedCountDisplay) skippedCountDisplay.textContent = `Bị loại: ${skippedCount}`;
-  const totalDisplay = document.getElementById("total-count");
-  if (totalDisplay) totalDisplay.textContent = `Tổng đã xử lý: ${sentCount + skippedCount}`;
+    if (sentCountDisplay) sentCountDisplay.textContent = `Đã gửi: ${sentCount}`;
+    if (skippedCountDisplay) skippedCountDisplay.textContent = `Bị loại: ${skippedCount}`;
+    const totalDisplay = document.getElementById("total-count");
+    if (totalDisplay) totalDisplay.textContent = `Tổng đã xử lý: ${sentCount + skippedCount}`;
 }
 
-function log(msg) {
-  const logDiv = document.getElementById("log") || document.body;
-  const item = document.createElement("div");
-  item.innerHTML = msg;
-  item.style.fontSize = "12px";
-  item.style.borderBottom = "1px solid #eee";
-  item.style.padding = "2px 0";
-  logDiv.prepend(item);
+function log(msg, type) {
+    const logDiv = document.getElementById("log");
+    if (!logDiv) return;
+    const item = document.createElement("div");
+    item.innerHTML = msg;
+    item.style.fontSize = "12px";
+    item.style.borderBottom = "1px solid #eee";
+    item.style.padding = "4px 0";
+    if (type === "success") item.style.backgroundColor = "#eaffea";
+    if (type === "skip") item.style.backgroundColor = "#fff9e6";
+    logDiv.prepend(item);
 }
